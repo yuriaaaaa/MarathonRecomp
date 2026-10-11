@@ -4,6 +4,11 @@
 
 ---
 
+
+> [!NOTE]
+> **Android fork / AI-assisted development:** This fork is intended to support development and experimentation toward running Marathon Recompiled (Sonic the Hedgehog, 2006) on Android. AI tools are used as development assistants for code analysis, implementation, debugging, and build troubleshooting, with changes reviewed and tested as practical. Android support and build status depend on this fork's current branch and are separate from the upstream project's listed desktop platforms.
+
+
 > [!CAUTION]
 > This recompilation is still under active development and is NOT meant for public use. Support will not be provided until an official release.
 
