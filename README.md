@@ -198,3 +198,10 @@ This project does not plan to support any more platforms other than Windows, Lin
 - [ocornut](https://github.com/ocornut): Creator of [Dear ImGui](https://github.com/ocornut/imgui), which is used as the backbone of the custom menus.
 
 - Raymond Chen: Useful resources on Windows application development with his blog ["The Old New Thing"](https://devblogs.microsoft.com/oldnewthing/).
+
+### Android device compatibility
+
+- **Reference test device:** Samsung Galaxy S25 with Snapdragon 8 Elite for Galaxy (Adreno 830 GPU, 12 GB RAM).
+- **Test scope:** This identifies the current reference device only; it is not a minimum-requirements claim and does not imply that every feature or game has been fully validated on this device.
+- **Other devices:** Compatibility and performance on other Android devices, including lower-end hardware, have not been established unless explicitly documented by a test result. Performance may vary with the GPU, graphics drivers, available memory, thermal behaviour, and game/runtime requirements.
+- **No blanket exclusion:** Lower-end devices are not declared incompatible; they require testing before support can be claimed.
