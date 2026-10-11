@@ -1,0 +1,68 @@
+diff --git a/plume_vulkan.cpp b/plume_vulkan.cpp
+index f1dd503..f985695 100644
+--- a/plume_vulkan.cpp
++++ b/plume_vulkan.cpp
+@@ -27,6 +27,13 @@
+ // TODO:
+ // - Fix resource pools.
+ 
++#ifdef __ANDROID__
++// Marathon Android port: returns vkGetInstanceProcAddr from a custom (Turnip/AdrenoTools)
++// driver when one is selected in the launcher, or nullptr for the system driver.
++extern "C" PFN_vkGetInstanceProcAddr MarathonAndroid_CustomVkGetInstanceProcAddr();
++extern "C" void MarathonAndroid_CustomDriverFailed(int result);
++#endif
++
+ namespace plume {
+     // Backend constants.
+ 
+@@ -2205,7 +2212,11 @@ namespace plume {
+         }
+ 
+         if (compatibleSurfaceFormats.empty()) {
+-            fprintf(stderr, "No compatible surface formats were found.\n");
++            fprintf(stderr, "No compatible surface formats were found (requested %d; offered:", int(requestedFormat));
++            for (uint32_t i = 0; i < surfaceFormatCount; i++) {
++                fprintf(stderr, " %d/%d", int(surfaceFormats[i].format), int(surfaceFormats[i].colorSpace));
++            }
++            fprintf(stderr, ").\n");
+             return;
+         }
+ 
+@@ -4464,7 +4475,19 @@ namespace plume {
+ #else
+     VulkanInterface::VulkanInterface() {
+ #endif
++#ifdef __ANDROID__
++        VkResult res = VK_SUCCESS;
++        bool usingCustomLoader = false;
++        if (PFN_vkGetInstanceProcAddr customLoader = MarathonAndroid_CustomVkGetInstanceProcAddr()) {
++            volkInitializeCustom(customLoader);
++            usingCustomLoader = true;
++        }
++        else {
++            res = volkInitialize();
++        }
++#else
+         VkResult res = volkInitialize();
++#endif
+         if (res != VK_SUCCESS) {
+             fprintf(stderr, "volkInitialize failed with error code 0x%X.\n", res);
+             return;
+@@ -4574,6 +4597,16 @@ namespace plume {
+ #   endif
+         
+         res = vkCreateInstance(&createInfo, nullptr, &instance);
++#ifdef __ANDROID__
++        if (res != VK_SUCCESS && usingCustomLoader) {
++            // The custom driver loaded but can't create an instance: fall back to the system driver.
++            fprintf(stderr, "vkCreateInstance failed with the custom driver (0x%X); retrying with the system driver.\n", res);
++            MarathonAndroid_CustomDriverFailed(res);
++            if (volkInitialize() == VK_SUCCESS) {
++                res = vkCreateInstance(&createInfo, nullptr, &instance);
++            }
++        }
++#endif
+         if (res != VK_SUCCESS) {
+             fprintf(stderr, "vkCreateInstance failed with error code 0x%X.\n", res);
+             return;
