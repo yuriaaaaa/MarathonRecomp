@@ -7,8 +7,7 @@ reverse-engineered is described in [docs/ANDROID_PORT.md](../docs/ANDROID_PORT.m
 
 ## You need your own copy of the game
 
-**This repository contains no game files and no code recompiled from the game, and no prebuilt APK
-is published.** To build and play, you need your own legally obtained copy of Sonic the Hedgehog
+**This repository contains no game files, no code recompiled from the game and no prebuilt APK.** To build and play, you need your own legally obtained copy of Sonic the Hedgehog
 (2006) for Xbox 360, as a disc image (ISO) you made yourself or as an extracted game folder.
 
 - The build reads `default.xex`, `xenon/archives/shader.arc` and `xenon/archives/shader_lt.arc`

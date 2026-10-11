@@ -16,9 +16,15 @@ An Android (arm64-v8a) port of [Marathon Recompiled](https://github.com/sonicnex
 
 ## Status of the source code
 
-The Android port was developed and built on a temporary Linux build machine. The source changes themselves (the Android launcher app, the native overlays on the SDK, and the build scripts) were not committed anywhere before that machine was recycled, so **they are not in this repository yet**. This document records what was implemented and what was reverse-engineered, in enough detail to rebuild it. Code will be added here if the sources are recovered or rewritten.
+The port's source is in this repository. It was recovered from the build session that produced the 0.6.0 APK and checked against that APK (the launcher's classes and strings, and every string the port adds to the native library).
 
-No game files and no code recompiled from the game are included in this repository. Builds must be made from your own legally obtained copy of the game.
+- **Runtime changes:** `MarathonRecomp/os/android/` plus the Android parts of `MarathonRecomp/`, `MarathonRecompLib/CMakeLists.txt` and `thirdparty/CMakeLists.txt`.
+- **Launcher app:** `android/android-app/` (mods, Mod Manager patches, tweaks and codes, GameBanana browser with 1-click install, DLC install, touch controls, GPU drivers, FPS counter).
+- **Build:** `android/build.sh` does every step listed in the build log below; [android/README.md](../android/README.md) explains how to run it.
+- **Third-party changes:** `android/patches/plume-android.patch` (applied to the plume submodule) and `android/patches/ffmpeg-xmaframes.patch`.
+- **Reverse-engineering helpers:** `android/host/xexinfo` and `android/tools/classify_patches.py`.
+
+No game files, no code recompiled from the game and no prebuilt APK are included. To build, you need your own legally obtained copy of the game, as an ISO or an extracted folder.
 
 Reference test device: Samsung Galaxy S25 (Snapdragon 8 Elite, Adreno 830). Results on other devices have not been tested.
 

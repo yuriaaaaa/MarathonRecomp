@@ -209,3 +209,5 @@ This project does not plan to support any more platforms other than Windows, Lin
 ### Android port notes
 
 What this fork changes for Android, and what was reverse-engineered along the way, is documented in [docs/ANDROID_PORT.md](docs/ANDROID_PORT.md).
+
+The Android source is in this repository; [android/README.md](android/README.md) explains how to build the APK from your own legally obtained copy of the game. The repository contains no game files and no code recompiled from the game.
