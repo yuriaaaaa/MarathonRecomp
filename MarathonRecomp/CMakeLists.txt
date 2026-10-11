@@ -31,8 +31,14 @@ function(BIN2C)
         set(BIN2C_ARGS_COMPRESSION_TYPE "none")
     endif()
 
+    if (ANDROID)
+        set(BIN2C_TOOL "${MARATHON_HOST_FILE_TO_C}")
+    else()
+        set(BIN2C_TOOL $<TARGET_FILE:file_to_c>)
+    endif()
+
     add_custom_command(OUTPUT "${BIN2C_ARGS_DEST_FILE}.c"
-        COMMAND $<TARGET_FILE:file_to_c> "${BIN2C_ARGS_SOURCE_FILE}" "${BIN2C_ARGS_ARRAY_NAME}" "${BIN2C_ARGS_COMPRESSION_TYPE}" "${BIN2C_ARGS_DEST_FILE}.c" "${BIN2C_ARGS_DEST_FILE}.h"
+        COMMAND ${BIN2C_TOOL} "${BIN2C_ARGS_SOURCE_FILE}" "${BIN2C_ARGS_ARRAY_NAME}" "${BIN2C_ARGS_COMPRESSION_TYPE}" "${BIN2C_ARGS_DEST_FILE}.c" "${BIN2C_ARGS_DEST_FILE}.h"
         DEPENDS "${BIN2C_ARGS_SOURCE_FILE}"
         BYPRODUCTS "${BIN2C_ARGS_DEST_FILE}.h"
         COMMENT "Generating binary header for ${BIN2C_ARGS_SOURCE_FILE}..."
@@ -86,7 +92,18 @@ set(MARATHON_RECOMP_LOCALE_CXX_SOURCES
     "locale/locale.cpp"
 )
 
-if (WIN32)
+if (ANDROID)
+    set(MARATHON_RECOMP_OS_CXX_SOURCES
+        "os/android/logger_android.cpp"
+        "os/android/media_android.cpp"
+        "os/android/process_android.cpp"
+        "os/android/user_android.cpp"
+        "os/android/version_android.cpp"
+        "os/android/android_main.cpp"
+        "os/android/touch_controls_android.cpp"
+        "os/android/gpu_android.cpp"
+    )
+elseif (WIN32)
     set(MARATHON_RECOMP_OS_CXX_SOURCES
         "os/win32/logger_win32.cpp"
         "os/win32/media_win32.cpp"
@@ -170,7 +187,7 @@ set(MARATHON_RECOMP_UI_CXX_SOURCES
 set(MARATHON_RECOMP_INSTALL_CXX_SOURCES
     "install/installer.cpp"
     "install/iso_file_system.cpp"
-    "install/update_checker.cpp"
+    "$<IF:$<BOOL:${ANDROID}>,install/update_checker_android.cpp,install/update_checker.cpp>"
     "install/xcontent_file_system.cpp"
     "install/hashes/game.cpp"
     "install/hashes/episode_sonic.cpp"
@@ -326,6 +343,19 @@ elseif (APPLE)
             MACOSX_BUNDLE_SHORT_VERSION_STRING ${MACOS_BUNDLE_VERSION}
             MACOSX_BUNDLE_ICON_FILE "game_icon.icns"
     )
+elseif (ANDROID)
+    # Android port: SDLActivity loads libmain.so and calls SDL_main.
+    add_library(MarathonRecomp SHARED ${MARATHON_RECOMP_CXX_SOURCES})
+    set_target_properties(MarathonRecomp PROPERTIES OUTPUT_NAME main)
+    set_source_files_properties(main.cpp PROPERTIES COMPILE_DEFINITIONS "main=MarathonMain" SKIP_PRECOMPILE_HEADERS ON)
+    target_compile_definitions(MarathonRecomp PRIVATE
+        "GAME_INSTALL_DIRECTORY=\"/storage/emulated/0/MarathonRecomp\"")
+    target_link_libraries(MarathonRecomp PRIVATE android log)
+    # Keep every SDL JNI entry point (SDLActivity, HIDDeviceManager, ...) in libmain.so.
+    target_link_options(MarathonRecomp PRIVATE "-Wl,--no-undefined"
+        "-Wl,--whole-archive" "$<TARGET_FILE:SDL2::SDL2-static>" "-Wl,--no-whole-archive"
+        # FFmpeg's NEON assembly addresses its tables PC-relative, which needs them non-preemptible.
+        "-Wl,--exclude-libs,libavformat.a:libavcodec.a:libswscale.a:libavfilter.a:libswresample.a:libavutil.a")
 else()
     add_executable(MarathonRecomp ${MARATHON_RECOMP_CXX_SOURCES})
 endif()
@@ -337,7 +367,9 @@ if (MARATHON_RECOMP_FLATPAK)
     )
 endif()
 
-find_package(CURL REQUIRED)
+if (NOT ANDROID)
+    find_package(CURL REQUIRED)
+endif()
 
 if (MARATHON_RECOMP_METAL)
     target_compile_definitions(MarathonRecomp PRIVATE MARATHON_RECOMP_METAL)
@@ -388,7 +420,7 @@ target_link_libraries(MarathonRecomp PRIVATE
     tomlplusplus::tomlplusplus
     MarathonRecompLib
     xxHash::xxhash
-    CURL::libcurl
+    $<$<NOT:$<BOOL:${ANDROID}>>:CURL::libcurl>
     plume
 )
 
@@ -410,6 +442,12 @@ if (CMAKE_SYSTEM_NAME MATCHES "Linux")
 endif()
 
 target_precompile_headers(MarathonRecomp PUBLIC ${MARATHON_RECOMP_PRECOMPILED_HEADERS})
+
+if (ANDROID)
+    # Shaders are compiled to SPIR-V on the build host.
+    set(DIRECTX_DXC_TOOL "LD_LIBRARY_PATH=${MARATHON_RECOMP_TOOLS_ROOT}/XenosRecomp/thirdparty/dxc-bin/lib/x64"
+        "${MARATHON_RECOMP_TOOLS_ROOT}/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxc-linux")
+endif()
 
 function(compile_shader FILE_PATH TARGET_NAME)
     set(HLSL_FILE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/gpu/shader/hlsl/${FILE_PATH}.hlsl)

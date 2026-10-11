@@ -12,7 +12,14 @@
 #include <user/registry.h>
 #include <xxHashMap.h>
 
+#ifdef __ANDROID__
+// Android port: libmain.so's static initialisers run on the Java UI thread, not on the thread
+// the game runs on, so "the main thread" is recorded by os/android/android_main.cpp instead.
+extern std::thread::id g_androidMainThreadId;
+#define g_mainThreadId g_androidMainThreadId
+#else
 static std::thread::id g_mainThreadId = std::this_thread::get_id();
+#endif
 extern std::array<XXH64_hash_t, 29> g_taskUpdatesOnPause;
 
 void App::Restart(std::vector<std::string> restartArgs)

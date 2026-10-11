@@ -212,6 +212,9 @@ void GameWindow::Init(const char* sdlVideoDriver)
         DWM_WINDOW_CORNER_PREFERENCE wcp = DWMWCP_DONOTROUND;
         DwmSetWindowAttribute(s_renderWindow, DWMWA_WINDOW_CORNER_PREFERENCE, &wcp, sizeof(wcp));
     }
+#elif defined(__ANDROID__)
+    // plume's Vulkan backend takes the ANativeWindow directly on Android.
+    s_renderWindow = info.info.android.window;
 #elif defined(PLUME_SDL_VULKAN_ENABLED)
     s_renderWindow = s_pWindow;
 #elif defined(__linux__)
@@ -439,7 +442,10 @@ uint32_t GameWindow::GetWindowFlags()
     if (Config::Fullscreen)
         flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 
-#ifdef PLUME_SDL_VULKAN_ENABLED
+#if defined(PLUME_SDL_VULKAN_ENABLED) || defined(__ANDROID__)
+    // Android port: without this SDL gives the window an EGL (OpenGL) surface
+    // by default, and the native window then refuses a Vulkan surface
+    // (VK_ERROR_NATIVE_WINDOW_IN_USE_KHR).
     flags |= SDL_WINDOW_VULKAN;
 #endif
 

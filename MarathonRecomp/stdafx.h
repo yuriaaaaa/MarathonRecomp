@@ -18,6 +18,9 @@ using Microsoft::WRL::ComPtr;
 #endif
 
 #include <algorithm>
+#ifdef __ANDROID__
+#include <os/android/atomic_ref_compat.h>
+#endif
 #include <mutex>
 #include <filesystem>
 #include <fstream>

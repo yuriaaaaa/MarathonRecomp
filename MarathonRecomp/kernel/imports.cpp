@@ -304,10 +304,34 @@ uint32_t XamShowDeviceSelectorUI
     return 0;
 }
 
+#ifdef __ANDROID__
+extern std::mutex g_androidMissingFileMutex; // kernel/io/file_system.cpp
+extern std::string g_androidMissingFile;
+
+void XamShowDirtyDiscErrorUI()
+{
+    // The game calls this when it can't read a file it needs, then "reboots" with
+    // XamLoaderLaunchTitle, which can't work here and crashed. Name the file and quit instead.
+    std::string missing;
+    {
+        std::lock_guard lock(g_androidMissingFileMutex);
+        missing = g_androidMissingFile;
+    }
+    LOGFN_ERROR("The game couldn't read a file it needs: {}", missing.empty() ? "(unknown)" : missing);
+
+    std::string message = "The game couldn't read a file it needs";
+    message += missing.empty() ? "." : ":\n\n" + missing;
+    message += "\n\nIf mods are on, one of them probably needs another mod or files that aren't installed. "
+               "The log in MarathonRecomp/logs has the details.";
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Missing game file", message.c_str(), nullptr);
+    std::_Exit(1);
+}
+#else
 void XamShowDirtyDiscErrorUI()
 {
     LOG_UTILITY("!!! STUB !!!");
 }
+#endif
 
 void XamEnableInactivityProcessing()
 {

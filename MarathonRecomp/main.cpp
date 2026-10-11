@@ -27,6 +27,58 @@
 #include <ui/game_window.h>
 #include <ui/installer_wizard.h>
 #include <mod/mod_loader.h>
+#ifdef __ANDROID__
+#include <sys/mman.h>
+#include <os/android/android_paths.h>
+extern uintptr_t g_androidGuestBase; // os/android/logger_android.cpp (crash reports)
+
+// Android port: Sonic '06 Mod Manager patches that write into default.xex's data sections.
+// The launcher lists them in mods/.marathon/xex_patches.txt ("# Title", then "ADDRESS HEXBYTES"
+// lines); they're written into the loaded image before the game starts. Code can't be patched
+// this way (it is recompiled ahead of time), so code ranges are refused here as well.
+static void ApplyAndroidXexPatches()
+{
+    std::ifstream file(std::filesystem::path(MARATHON_ANDROID_ROOT) / "mods" / ".marathon" / "xex_patches.txt");
+    if (!file)
+        return;
+
+    constexpr uint32_t imageBegin = 0x82000000, imageEnd = 0x82D98000;
+    constexpr uint32_t codeBegin = 0x82160000, codeEnd = 0x82B0ABB8;
+
+    std::string line;
+    size_t writes = 0;
+    while (std::getline(file, line))
+    {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        if (line.empty())
+            continue;
+        if (line[0] == '#')
+        {
+            LOGFN("Patch: {}", line.size() > 2 ? line.substr(2) : line);
+            continue;
+        }
+
+        size_t space = line.find(' ');
+        if (space == std::string::npos)
+            continue;
+        uint32_t address = uint32_t(strtoul(line.substr(0, space).c_str(), nullptr, 16));
+        std::string hex = line.substr(space + 1);
+        size_t size = hex.size() / 2;
+        if (address < imageBegin || uint64_t(address) + size > imageEnd || (address < codeEnd && address + size > codeBegin))
+        {
+            LOGFN_ERROR("Patch write at {:08X} ({} bytes) refused", address, size);
+            continue;
+        }
+
+        auto* destination = static_cast<uint8_t*>(g_memory.Translate(address));
+        for (size_t i = 0; i < size; i++)
+            destination[i] = uint8_t(strtoul(hex.substr(i * 2, 2).c_str(), nullptr, 16));
+        writes++;
+    }
+    LOGFN("Patches: {} data writes applied to default.xex", writes);
+}
+#endif
 #include <preload_executable.h>
 #include <iostream>
 #include <app.h>
@@ -309,11 +361,30 @@ int main(int argc, char *argv[])
             std::_Exit(0);
     }
 
+#ifdef __ANDROID__
+    // Android port: the launcher's Mods screen writes cpkredir.ini/ModsDB.ini.
+    ModLoader::Init();
+
+    g_androidGuestBase = uintptr_t(g_memory.base);
+    if (ModLoader::GetIncludeDirectories(0) != nullptr)
+    {
+        // Big '06 mods are made on Xenia and some ask for protect_zero=false there (Legacy of
+        // Solaris does): reads of guest address 0 must not fault. Only page 0 is protected here
+        // (Xenia protects 64 KiB), so open it up while mods are active.
+        if (mprotect(g_memory.base, 4096, PROT_READ | PROT_WRITE) == 0)
+            LOGN("Mods active: guest page 0 is readable (like Xenia's protect_zero=false)");
+    }
+#else
     // ModLoader::Init();
+#endif
 
     KiSystemStartup();
 
     uint32_t entry = LdrLoadModule(modulePath);
+
+#ifdef __ANDROID__
+    ApplyAndroidXexPatches();
+#endif
 
     if (!runInstallerWizard)
     {

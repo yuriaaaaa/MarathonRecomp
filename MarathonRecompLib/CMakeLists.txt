@@ -25,6 +25,7 @@ foreach(i RANGE 0 145)
     list(APPEND MARATHON_RECOMP_PPC_RECOMPILED_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/ppc/ppc_recomp.${i}.cpp")
 endforeach()
 
+if (NOT ANDROID)
 add_custom_command(
     OUTPUT 
         ${MARATHON_RECOMP_PPC_RECOMPILED_SOURCES}
@@ -74,6 +75,7 @@ add_custom_command(
         ${XENOS_RECOMP_INCLUDE}
     USES_TERMINAL
 )
+endif()
 
 add_library(MarathonRecompLib
     ${MARATHON_RECOMP_PPC_RECOMPILED_SOURCES}

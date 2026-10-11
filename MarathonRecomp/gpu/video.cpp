@@ -378,7 +378,12 @@ static std::unique_ptr<RenderCommandFence> g_discardCommandFence;
 static std::unique_ptr<RenderSwapChain> g_swapChain;
 static bool g_swapChainValid;
 
+#ifdef __ANDROID__
+// Android port: Android Vulkan swapchains offer RGBA8 but not BGRA8.
+static constexpr RenderFormat BACKBUFFER_FORMAT = RenderFormat::R8G8B8A8_UNORM;
+#else
 static constexpr RenderFormat BACKBUFFER_FORMAT = RenderFormat::B8G8R8A8_UNORM;
+#endif
 
 static std::unique_ptr<RenderCommandSemaphore> g_acquireSemaphores[NUM_FRAMES];
 static std::vector<std::unique_ptr<RenderCommandSemaphore>> g_renderSemaphores;
@@ -2121,6 +2126,17 @@ bool Video::CreateHostDevice(const char* sdlVideoDriver, bool graphicsApiRetry)
 
     g_capabilities = g_device->getCapabilities();
 
+#ifdef __ANDROID__
+    {
+        const RenderDeviceDescription &description = g_device->getDescription();
+        LOGFN("GPU: {} (driver {:X}), descriptor indexing {}, buffer device address {}, scalar block layout {}, present wait {}, triangle fans {}, max texture {}",
+            description.name, description.driverVersion, g_capabilities.descriptorIndexing, g_capabilities.bufferDeviceAddress,
+            g_capabilities.scalarBlockLayout, g_capabilities.presentWait, g_capabilities.triangleFan, g_capabilities.maxTextureSize);
+        extern void AndroidGpu_ReportDevice(const std::string& name, uint64_t driverVersion);
+        AndroidGpu_ReportDevice(description.name, description.driverVersion);
+    }
+#endif
+
     LoadEmbeddedResources();
 
     constexpr uint64_t LowEndMemoryLimit = 2048ULL * 1024ULL * 1024ULL;
@@ -3386,6 +3402,12 @@ void Video::Present()
 
         RenderCommandSemaphore* signalSemaphores[] = { g_renderSemaphores[g_backBufferIndex].get() };
         g_swapChainValid = g_swapChain->present(g_backBufferIndex, signalSemaphores, std::size(signalSemaphores));
+#ifdef __ANDROID__
+        // Read by the launcher's FPS overlay (GameActivity.nativeGetPresentCount).
+        extern std::atomic<uint64_t> g_androidPresentCount;
+        if (g_swapChainValid)
+            g_androidPresentCount.fetch_add(1, std::memory_order_relaxed);
+#endif
     }
 
     g_pendingWaitOnSwapChain = true;

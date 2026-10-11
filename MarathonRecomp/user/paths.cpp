@@ -1,5 +1,8 @@
 #include "paths.h"
 #include <os/process.h>
+#ifdef __ANDROID__
+#include <os/android/android_paths.h>
+#endif
 
 std::filesystem::path g_executableRoot = os::process::GetExecutableRoot();
 std::filesystem::path g_userPath = BuildUserPath();
@@ -11,6 +14,11 @@ bool CheckPortable()
 
 std::filesystem::path BuildUserPath()
 {
+#ifdef __ANDROID__
+    // Android port: config, saves and achievements next to the game files.
+    return std::filesystem::path(MARATHON_ANDROID_ROOT) / "user";
+#endif
+
     if (CheckPortable())
         return g_executableRoot;
 

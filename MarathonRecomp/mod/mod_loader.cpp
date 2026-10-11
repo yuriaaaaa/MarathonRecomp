@@ -26,6 +26,55 @@ struct Mod
 
 static std::vector<Mod> g_mods;
 
+#ifdef __ANDROID__
+// Android port: mods made on Windows don't always match the game's file name
+// casing, and Android storage is case-sensitive. Index every mod's files by
+// lower-case relative path once at startup.
+static std::vector<ankerl::unordered_dense::map<std::string, std::filesystem::path>> g_modFileIndex;
+
+static std::string ToLowerPath(std::string_view path)
+{
+    std::string result(path);
+    for (char& c : result)
+    {
+        if (c == '\\')
+            c = '/';
+        else if (c >= 'A' && c <= 'Z')
+            c = char(c - 'A' + 'a');
+    }
+    return result;
+}
+
+static void BuildModFileIndex()
+{
+    g_modFileIndex.clear();
+    g_modFileIndex.resize(g_mods.size());
+
+    size_t totalFiles = 0;
+    for (size_t i = 0; i < g_mods.size(); i++)
+    {
+        for (auto& includeDir : g_mods[i].includeDirs)
+        {
+            std::error_code ec;
+            for (auto it = std::filesystem::recursive_directory_iterator(includeDir, ec); !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec))
+            {
+                if (!it->is_regular_file(ec))
+                    continue;
+
+                auto relative = it->path().lexically_relative(includeDir).generic_u8string();
+                // Earlier include directories take precedence.
+                if (g_modFileIndex[i].try_emplace(ToLowerPath(std::string_view((const char*)relative.data(), relative.size())), it->path()).second)
+                    totalFiles++;
+            }
+        }
+
+        LOGFN("Mod loader: mod {} has {} files", i, g_modFileIndex[i].size());
+    }
+
+    LOGFN("Mod loader: {} active mods, {} files", g_mods.size(), totalFiles);
+}
+#endif
+
 std::filesystem::path ModLoader::ResolvePath(std::string_view path)
 {
     std::string_view root;
@@ -69,17 +118,31 @@ std::filesystem::path ModLoader::ResolvePath(std::string_view path)
         path.find(".ar.") == (path.size() - 6) ||
         path.find(".ar") == (path.size() - 3);
 
-    for (auto& mod : g_mods)
+#ifdef __ANDROID__
+    std::string lowerPath = ToLowerPath(path);
+#endif
+
+    for (size_t modIndex = 0; modIndex < g_mods.size(); modIndex++)
     {
+        auto& mod = g_mods[modIndex];
         if (mod.type == ModType::UMM && mod.merge && canBeMerged && !mod.readOnly.contains(fsPath))
             continue;
 
+#ifdef __ANDROID__
+        if (modIndex < g_modFileIndex.size())
+        {
+            auto found = g_modFileIndex[modIndex].find(lowerPath);
+            if (found != g_modFileIndex[modIndex].end())
+                return s_cache.emplace(hash, found->second).first->second;
+        }
+#else
         for (auto& includeDir : mod.includeDirs)
         {
             std::filesystem::path modPath = includeDir / fsPath;
             if (std::filesystem::exists(modPath))
                 return s_cache.emplace(hash, modPath).first->second;
         }
+#endif
     }
 
     return s_cache.emplace(hash, std::filesystem::path{}).first->second;
@@ -215,6 +278,10 @@ void ModLoader::Init()
         if (!mod.includeDirs.empty())
             g_mods.emplace_back(std::move(mod));
     }
+
+#ifdef __ANDROID__
+    BuildModFileIndex();
+#endif
 
     auto codeCount = modsDbIni.get<size_t>("Codes", "CodeCount", 0);
 

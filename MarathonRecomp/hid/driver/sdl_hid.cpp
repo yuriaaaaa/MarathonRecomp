@@ -7,6 +7,10 @@
 #include <kernel/xdm.h>
 #include <app.h>
 
+#ifdef __ANDROID__
+void AndroidTouchControls_Attach(); // os/android/touch_controls_android.cpp
+#endif
+
 #define TRANSLATE_INPUT(S, X) SDL_GameControllerGetButton(controller, S) << FirstBitLow(X)
 #define VIBRATION_TIMEOUT_MS 5000
 
@@ -369,6 +373,11 @@ void hid::Init()
     if (int mappings = SDL_GameControllerAddMappingsFromFile("gamecontrollerdb.txt"); mappings > 0) {
         LOGFN("Loaded {} controller mapping(s) from SDL_GameControllerDB ({})", mappings, "gamecontrollerdb.txt");
     }
+
+#ifdef __ANDROID__
+    // On-screen touch controls appear to the game as one more controller.
+    AndroidTouchControls_Attach();
+#endif
 }
 
 uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)

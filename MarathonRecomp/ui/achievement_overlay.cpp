@@ -17,7 +17,14 @@ static double g_appearTime{};
 static Achievement g_achievement{};
 
 // Dequeue achievements only in the main thread. This is also extra thread safety.
+#ifdef __ANDROID__
+// Android port: libmain.so's static initialisers run on the Java UI thread, not on the thread
+// the game runs on, so "the main thread" is recorded by os/android/android_main.cpp instead.
+extern std::thread::id g_androidMainThreadId;
+#define g_mainThreadId g_androidMainThreadId
+#else
 static std::thread::id g_mainThreadId = std::this_thread::get_id();
+#endif
 
 static bool CanDequeueAchievement()
 {

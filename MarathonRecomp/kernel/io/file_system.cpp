@@ -81,6 +81,11 @@ struct FindHandle : KernelObject
     }
 };
 
+#ifdef __ANDROID__
+std::mutex g_androidMissingFileMutex;
+std::string g_androidMissingFile;
+#endif
+
 FileHandle* XCreateFileA
 (
     const char* lpFileName,
@@ -119,6 +124,16 @@ FileHandle* XCreateFileA
 
     if (!fileStream.is_open())
     {
+#ifdef __ANDROID__
+        // Android port: say which file is missing. A missing file usually ends in the
+        // game's "disc unreadable" error, which XamShowDirtyDiscErrorUI reports by name.
+        if (!(dwDesiredAccess & GENERIC_WRITE))
+        {
+            LOGFN_ERROR("Can't open {} (looked for {})", lpFileName, reinterpret_cast<const char*>(filePath.u8string().c_str()));
+            std::lock_guard lock(g_androidMissingFileMutex);
+            g_androidMissingFile = lpFileName;
+        }
+#endif
 #ifdef _WIN32
         GuestThread::SetLastError(GetLastError());
 #else
@@ -387,7 +402,12 @@ uint32_t XWriteFile(FileHandle* hFile, const void* lpBuffer, uint32_t nNumberOfB
 
 std::filesystem::path FileSystem::ResolvePath(const std::string_view& path, bool checkForMods)
 {
+#ifdef __ANDROID__
+    // (Upstream passes "Game" as the format string, so it never printed the path.)
+    LOGF_UTILITY("{}", path);
+#else
     LOGF_UTILITY("Game", "Loading file: \"{}\"", path.data());
+#endif
     if (checkForMods)
     {
         std::filesystem::path resolvedPath = ModLoader::ResolvePath(path);
@@ -395,7 +415,14 @@ std::filesystem::path FileSystem::ResolvePath(const std::string_view& path, bool
         if (!resolvedPath.empty())
         {
             if (ModLoader::s_isLogTypeConsole)
+            {
+#ifdef __ANDROID__
+                // (LOGF_UTILITY takes the format first; upstream's call only printed "Mod Loader".)
+                LOGFN_UTILITY("Mod Loader: {} -> {}", path, reinterpret_cast<const char*>(resolvedPath.u8string().c_str()));
+#else
                 LOGF_UTILITY("Mod Loader", "Loading file: \"{}\"", reinterpret_cast<const char*>(resolvedPath.u8string().c_str()));
+#endif
+            }
 
             return resolvedPath;
         }
